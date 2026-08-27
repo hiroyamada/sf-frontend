@@ -9,6 +9,19 @@ import type { ContactInput } from "./types";
  * and anything it rejects anyway is surfaced by `toFieldErrors` in `./api.ts`.
  */
 
+/** Raw file cap for the photo picker: 2 MB before base64 encoding. */
+export const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+/** Encoded cap, mirroring the API: 2 MB base64-encodes to ~2.8M characters. */
+export const PHOTO_MAX_LENGTH = 3_000_000;
+/** SVG is deliberately excluded: data:image/svg+xml can carry scripts. */
+export const PHOTO_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+];
+const PHOTO_DATA_URL = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
 /** Optional text: trimmed, and blank becomes `null` (the API clears the field). */
 function optionalText(max: number, label: string) {
   return z
@@ -49,6 +62,16 @@ export const contactInputSchema = z.object({
   notes: z
     .string()
     .trim()
+    .transform((value) => value || null)
+    .nullable()
+    .default(null),
+  photo: z
+    .string()
+    .max(PHOTO_MAX_LENGTH, "Photo is too large — choose an image under 2 MB")
+    .refine(
+      (value) => value === "" || PHOTO_DATA_URL.test(value),
+      "Photo must be a PNG, JPEG, GIF, or WebP image",
+    )
     .transform((value) => value || null)
     .nullable()
     .default(null),
@@ -214,14 +237,18 @@ export const CONTACT_FIELDS: ContactFieldSpec[] = CONTACT_FIELD_GROUPS.flatMap(
   (group) => group.fields,
 );
 
+/** Inputs rendered outside the metadata-driven groups (see ContactPhotoInput). */
+export const EXTRA_FIELD_NAMES: (keyof ContactInput)[] = ["photo"];
+
 /** Pull the contact fields out of a submitted form, as raw strings. */
 export function formDataToValues(
   formData: FormData,
 ): Record<keyof ContactInput, string> {
+  const names = [
+    ...CONTACT_FIELDS.map((field) => field.name),
+    ...EXTRA_FIELD_NAMES,
+  ];
   return Object.fromEntries(
-    CONTACT_FIELDS.map((field) => [
-      field.name,
-      String(formData.get(field.name) ?? ""),
-    ]),
+    names.map((name) => [name, String(formData.get(name) ?? "")]),
   ) as Record<keyof ContactInput, string>;
 }

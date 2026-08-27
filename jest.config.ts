@@ -61,6 +61,9 @@ const config: Config = {
     '<rootDir>/node_modules/',
     '<rootDir>/.next/',
     '<rootDir>/e2e/',
+    // Claude Code checks out throwaway worktrees here; their copies of the
+    // test files must not run against this checkout.
+    '<rootDir>/.claude/',
   ],
 }
 

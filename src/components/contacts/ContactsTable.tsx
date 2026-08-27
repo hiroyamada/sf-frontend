@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Pencil } from "lucide-react";
 import ContactAvatar from "./ContactAvatar";
 import DeleteContactButton from "./DeleteContactButton";
+import OrderPizzaButton from "./OrderPizzaButton";
 import SortHeader from "./SortHeader";
 import { buttonClasses } from "@/components/ui/Button";
 import { jobLine } from "@/lib/contacts/format";
@@ -105,6 +106,10 @@ export default function ContactsTable({
                     >
                       <Pencil className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                     </Link>
+                    <OrderPizzaButton
+                      addresses={contact.addresses}
+                      contactName={contact.full_name}
+                    />
                     <DeleteContactButton
                       contactId={contact.id}
                       contactName={contact.full_name}

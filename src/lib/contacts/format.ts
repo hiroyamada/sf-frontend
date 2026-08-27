@@ -55,6 +55,21 @@ export function addressLine(address: Omit<Address, "id" | "type">): string | nul
   return parts.length ? parts.join(", ") : null;
 }
 
+/**
+ * Google Maps search for pizza delivery near the address, `+` for spaces:
+ * `https://www.google.com/maps/search/pizza+delivery+near+1600+15th+St+San+Francisco+CA+94103`
+ */
+export function pizzaSearchUrl(
+  address: Pick<Address, "street" | "city" | "state" | "postal_code">,
+): string {
+  const place = [address.street, address.city, address.state, address.postal_code]
+    .filter((part): part is string => Boolean(part && part.trim()))
+    .join(" ");
+
+  const query = `pizza delivery near ${place}`;
+  return `https://www.google.com/maps/search/${encodeURIComponent(query).replace(/%20/g, "+")}`;
+}
+
 /** A contact's addresses bucketed by type, in display order, empty types dropped. */
 export function addressesByType(
   addresses: Address[],

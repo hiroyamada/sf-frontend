@@ -2,6 +2,7 @@ import {
   addressLine,
   addressesByType,
   avatarHue,
+  pizzaSearchUrl,
   formatTimestamp,
   initials,
   jobLine,
@@ -67,6 +68,29 @@ describe("addressLine", () => {
         makeAddress({ city: null, state: null, country: null, postal_code: null }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("pizzaSearchUrl", () => {
+  it("builds the delivery search with + for spaces", () => {
+    expect(
+      pizzaSearchUrl(
+        makeAddress({
+          street: "1600 15th St",
+          city: "San Francisco",
+          state: "CA",
+          postal_code: "94103",
+        }),
+      ),
+    ).toBe(
+      "https://www.google.com/maps/search/pizza+delivery+near+1600+15th+St+San+Francisco+CA+94103",
+    );
+  });
+
+  it("skips the parts that are not filled in", () => {
+    expect(pizzaSearchUrl(makeAddress({ state: null }))).toContain(
+      "near+San+Francisco",
+    );
   });
 });
 

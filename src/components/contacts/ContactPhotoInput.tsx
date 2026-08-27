@@ -5,8 +5,55 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
 import { PHOTO_MAX_BYTES, PHOTO_MIME_TYPES } from "@/lib/contacts/schema";
 
+/** Avatars render at 80px at most, so anything beyond this is wasted bytes. */
+const PHOTO_MAX_DIMENSION = 512;
+/** Files already this small skip re-encoding to avoid quality loss for nothing. */
+const SKIP_DOWNSCALE_BYTES = 200 * 1024;
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
- * Photo picker: file input → FileReader → base64 data URL held in a hidden
+ * Encode a picked file as a base64 data URL, downscaling to at most 512px on
+ * the long edge first so a 2 MB camera photo becomes tens of kilobytes and
+ * list responses stay small. GIFs are kept as-is (canvas would flatten the
+ * animation), as are files that are already small and small enough in pixels.
+ */
+async function encodePhoto(file: File): Promise<string> {
+  if (file.type === "image/gif") {
+    return readAsDataUrl(file);
+  }
+
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(
+    1,
+    PHOTO_MAX_DIMENSION / Math.max(bitmap.width, bitmap.height),
+  );
+  if (scale === 1 && file.size <= SKIP_DOWNSCALE_BYTES) {
+    return readAsDataUrl(file);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+  const webp = canvas.toDataURL("image/webp", 0.85);
+  if (webp.startsWith("data:image/webp")) {
+    return webp;
+  }
+  // Safari cannot encode WebP; PNG keeps transparency intact.
+  return canvas.toDataURL("image/png");
+}
+
+/**
+ * Photo picker: file input → downscale → base64 data URL held in a hidden
  * `photo` input, so the photo travels through the normal form pipeline. The
  * hidden input also round-trips the existing photo on edit, where saving is a
  * full replace — without it, every edit would silently clear the photo.
@@ -25,7 +72,7 @@ export default function ContactPhotoInput({
   const message = localError ?? error;
   const errorId = "field-photo-error";
 
-  function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
     if (!PHOTO_MIME_TYPES.includes(file.type)) {
@@ -36,12 +83,14 @@ export default function ContactPhotoInput({
       setLocalError("Choose an image under 2 MB.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
+    try {
+      const encoded = await encodePhoto(file);
       setLocalError(undefined);
-      setPhoto(String(reader.result));
-    };
-    reader.readAsDataURL(file);
+      setPhoto(encoded);
+    } catch {
+      // createImageBitmap rejects when the bytes aren't a decodable image.
+      setLocalError("That file doesn't look like a valid image.");
+    }
   }
 
   function removePhoto() {

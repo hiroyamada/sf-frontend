@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ContactForm from "@/components/contacts/ContactForm";
-import { makeContact } from "../mocks/handlers";
+import { makeAddress, makeContact } from "../mocks/handlers";
 import type { FormState } from "@/lib/contacts/types";
 
 function renderForm(action: jest.Mock, contact?: ReturnType<typeof makeContact>) {
@@ -33,7 +33,7 @@ describe("ContactForm", () => {
     expect(screen.getByLabelText(/first name/i)).toHaveValue("Ada");
     expect(screen.getByLabelText(/^email/i)).toHaveValue("ada@example.com");
     // Nulls become empty inputs rather than the string "null".
-    expect(screen.getByLabelText(/street address/i)).toHaveValue("");
+    expect(screen.getByLabelText(/notes/i)).toHaveValue("");
   });
 
   it("submits the entered values to the action", async () => {
@@ -104,6 +104,69 @@ describe("ContactForm", () => {
 
     await waitFor(() => expect(action).toHaveBeenCalled());
     expect(action.mock.calls[0][1].get("photo")).toBe("");
+  });
+
+  it("round-trips existing addresses through the submit, without their ids", async () => {
+    const action = jest.fn<Promise<FormState>, [FormState, FormData]>(
+      async () => ({ status: "idle" }),
+    );
+    renderForm(
+      action,
+      makeContact({
+        addresses: [makeAddress({ id: 7, type: "work", street: "1 Market St" })],
+      }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /create contact/i }));
+
+    await waitFor(() => expect(action).toHaveBeenCalled());
+    const sent = JSON.parse(String(action.mock.calls[0][1].get("addresses")));
+    expect(sent).toEqual([
+      {
+        type: "work",
+        street: "1 Market St",
+        city: "San Francisco",
+        state: "CA",
+        postal_code: null,
+        country: "USA",
+      },
+    ]);
+  });
+
+  it("submits an address row added through the editor", async () => {
+    const action = jest.fn<Promise<FormState>, [FormState, FormData]>(
+      async () => ({ status: "idle" }),
+    );
+    renderForm(action);
+
+    await userEvent.type(screen.getByLabelText(/first name/i), "Grace");
+    await userEvent.type(screen.getByLabelText(/last name/i), "Hopper");
+    await userEvent.type(screen.getByLabelText(/^email/i), "grace@example.com");
+
+    await userEvent.click(screen.getByRole("button", { name: /add address/i }));
+    await userEvent.selectOptions(screen.getByLabelText(/type/i), "work");
+    await userEvent.type(screen.getByLabelText(/city/i), "Arlington");
+
+    await userEvent.click(screen.getByRole("button", { name: /create contact/i }));
+
+    await waitFor(() => expect(action).toHaveBeenCalled());
+    const sent = JSON.parse(String(action.mock.calls[0][1].get("addresses")));
+    expect(sent).toHaveLength(1);
+    expect(sent[0].type).toBe("work");
+    expect(sent[0].city).toBe("Arlington");
+  });
+
+  it("submits an empty list after the only address is removed", async () => {
+    const action = jest.fn<Promise<FormState>, [FormState, FormData]>(
+      async () => ({ status: "idle" }),
+    );
+    renderForm(action, makeContact({ addresses: [makeAddress()] }));
+
+    await userEvent.click(screen.getByRole("button", { name: /remove address 1/i }));
+    await userEvent.click(screen.getByRole("button", { name: /create contact/i }));
+
+    await waitFor(() => expect(action).toHaveBeenCalled());
+    expect(String(action.mock.calls[0][1].get("addresses"))).toBe("[]");
   });
 
   it("links back out without submitting", () => {

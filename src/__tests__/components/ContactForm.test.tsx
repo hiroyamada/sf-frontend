@@ -80,6 +80,32 @@ describe("ContactForm", () => {
     );
   });
 
+  it("round-trips an existing photo through the submit (PUT is a full replace)", async () => {
+    const photo = "data:image/png;base64,aGVsbG8=";
+    const action = jest.fn<Promise<FormState>, [FormState, FormData]>(
+      async () => ({ status: "idle" }),
+    );
+    renderForm(action, makeContact({ photo }));
+
+    await userEvent.click(screen.getByRole("button", { name: /create contact/i }));
+
+    await waitFor(() => expect(action).toHaveBeenCalled());
+    expect(action.mock.calls[0][1].get("photo")).toBe(photo);
+  });
+
+  it("submits an empty photo after the user removes it", async () => {
+    const action = jest.fn<Promise<FormState>, [FormState, FormData]>(
+      async () => ({ status: "idle" }),
+    );
+    renderForm(action, makeContact({ photo: "data:image/png;base64,aGVsbG8=" }));
+
+    await userEvent.click(screen.getByRole("button", { name: /remove/i }));
+    await userEvent.click(screen.getByRole("button", { name: /create contact/i }));
+
+    await waitFor(() => expect(action).toHaveBeenCalled());
+    expect(action.mock.calls[0][1].get("photo")).toBe("");
+  });
+
   it("links back out without submitting", () => {
     renderForm(jest.fn());
     expect(screen.getByRole("link", { name: /cancel/i })).toHaveAttribute(

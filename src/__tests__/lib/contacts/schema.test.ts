@@ -1,9 +1,14 @@
 import {
   CONTACT_FIELDS,
+  EXTRA_FIELD_NAMES,
+  PHOTO_MAX_LENGTH,
   contactInputSchema,
   formDataToValues,
   zodFieldErrors,
 } from "@/lib/contacts/schema";
+
+const PHOTO_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 function values(overrides: Record<string, string> = {}) {
   return {
@@ -19,6 +24,7 @@ function values(overrides: Record<string, string> = {}) {
     postal_code: "",
     country: "",
     notes: "",
+    photo: "",
     ...overrides,
   };
 }
@@ -56,6 +62,31 @@ describe("contactInputSchema", () => {
     expect(zodFieldErrors(result.error!).email).toBe("Enter a valid email address");
   });
 
+  it("accepts an image data URL as the photo and nulls out a blank one", () => {
+    expect(contactInputSchema.parse(values({ photo: PHOTO_DATA_URL })).photo).toBe(
+      PHOTO_DATA_URL,
+    );
+    expect(contactInputSchema.parse(values()).photo).toBeNull();
+  });
+
+  it("rejects a photo that is not an image data URL", () => {
+    for (const bad of ["https://example.com/x.png", "data:text/html;base64,PGI+"]) {
+      const result = contactInputSchema.safeParse(values({ photo: bad }));
+      expect(zodFieldErrors(result.error!).photo).toBe(
+        "Photo must be a PNG, JPEG, GIF, or WebP image",
+      );
+    }
+  });
+
+  it("rejects an oversized photo", () => {
+    const result = contactInputSchema.safeParse(
+      values({ photo: "data:image/png;base64," + "A".repeat(PHOTO_MAX_LENGTH) }),
+    );
+    expect(zodFieldErrors(result.error!).photo).toBe(
+      "Photo is too large — choose an image under 2 MB",
+    );
+  });
+
   it("enforces the API's length limits", () => {
     const result = contactInputSchema.safeParse(
       values({ first_name: "a".repeat(101), postal_code: "9".repeat(21) }),
@@ -80,7 +111,7 @@ describe("formDataToValues", () => {
     expect(extracted.first_name).toBe("Grace");
     expect(extracted.last_name).toBe("");
     expect(Object.keys(extracted).sort()).toEqual(
-      CONTACT_FIELDS.map((field) => field.name).sort(),
+      [...CONTACT_FIELDS.map((field) => field.name), ...EXTRA_FIELD_NAMES].sort(),
     );
   });
 });

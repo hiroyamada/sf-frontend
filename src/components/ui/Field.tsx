@@ -1,6 +1,7 @@
 import type { ContactFieldSpec } from "@/lib/contacts/schema";
 
-const CONTROL =
+/** Shared control classes, so bespoke inputs can match the metadata-driven ones. */
+export const CONTROL =
   "w-full rounded-md border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors focus:bg-input";
 
 /**

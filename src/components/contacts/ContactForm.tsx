@@ -6,8 +6,9 @@ import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
 import Field from "@/components/ui/Field";
 import Button, { buttonClasses } from "@/components/ui/Button";
+import ContactAddressesInput from "@/components/contacts/ContactAddressesInput";
 import ContactPhotoInput from "@/components/contacts/ContactPhotoInput";
-import { CONTACT_FIELD_GROUPS } from "@/lib/contacts/schema";
+import { CONTACT_FIELD_GROUPS, type ContactFieldGroup } from "@/lib/contacts/schema";
 import {
   EMPTY_FORM_STATE,
   type Contact,
@@ -51,8 +52,53 @@ export default function ContactForm({
 }) {
   const [state, formAction] = useActionState(action, EMPTY_FORM_STATE);
 
-  function valueFor(name: keyof ContactInput): string {
+  function valueFor(name: Exclude<keyof ContactInput, "addresses">): string {
     return state.values?.[name] ?? contact?.[name] ?? "";
+  }
+
+  // Address rows are objects, not strings — serialize them for the hidden
+  // input, dropping the server-assigned ids the API does not accept back.
+  const addressesValue =
+    state.values?.addresses ??
+    JSON.stringify(
+      (contact?.addresses ?? []).map(
+        ({ type, street, city, state: region, postal_code, country }) => ({
+          type,
+          street,
+          city,
+          state: region,
+          postal_code,
+          country,
+        }),
+      ),
+    );
+
+  function renderGroup(group: ContactFieldGroup) {
+    return (
+      <fieldset key={group.title} className="space-y-4">
+        <legend className="sr-only">{group.title}</legend>
+
+        <div className="border-b border-hairline pb-2">
+          <h2 className="font-display text-sm font-semibold text-foreground">
+            {group.title}
+          </h2>
+          <p className="text-[13px] text-muted-foreground">
+            {group.description}
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {group.fields.map((field) => (
+            <Field
+              key={field.name}
+              field={field}
+              defaultValue={valueFor(field.name)}
+              error={state.fieldErrors?.[field.name]}
+            />
+          ))}
+        </div>
+      </fieldset>
+    );
   }
 
   return (
@@ -89,31 +135,28 @@ export default function ContactForm({
         />
       </fieldset>
 
-      {CONTACT_FIELD_GROUPS.map((group) => (
-        <fieldset key={group.title} className="space-y-4">
-          <legend className="sr-only">{group.title}</legend>
+      {/* Addresses slot in before the final Notes group. */}
+      {CONTACT_FIELD_GROUPS.slice(0, -1).map(renderGroup)}
 
-          <div className="border-b border-hairline pb-2">
-            <h2 className="font-display text-sm font-semibold text-foreground">
-              {group.title}
-            </h2>
-            <p className="text-[13px] text-muted-foreground">
-              {group.description}
-            </p>
-          </div>
+      <fieldset className="space-y-4">
+        <legend className="sr-only">Addresses</legend>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {group.fields.map((field) => (
-              <Field
-                key={field.name}
-                field={field}
-                defaultValue={valueFor(field.name)}
-                error={state.fieldErrors?.[field.name]}
-              />
-            ))}
-          </div>
-        </fieldset>
-      ))}
+        <div className="border-b border-hairline pb-2">
+          <h2 className="font-display text-sm font-semibold text-foreground">
+            Addresses
+          </h2>
+          <p className="text-[13px] text-muted-foreground">
+            As many as needed, each labelled Home, Work, or Other.
+          </p>
+        </div>
+
+        <ContactAddressesInput
+          defaultValue={addressesValue}
+          error={state.fieldErrors?.addresses}
+        />
+      </fieldset>
+
+      {CONTACT_FIELD_GROUPS.slice(-1).map(renderGroup)}
 
       <div className="flex items-center gap-2 border-t border-hairline pt-4">
         <SubmitButton label={submitLabel} />
